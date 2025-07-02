@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lambda-consumer
+  namespace: lra-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lambda-consumer
+  template:
+    metadata:
+      labels:
+        app: lambda-consumer
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: lambda-consumer
+          image: lambda-consumer:latest  # Build this locally with imagePullPolicy: Never
+          imagePullPolicy: Never
+          env:
+            - name: RABBITMQ_URL
+              value: amqp://myuser:mypass@rabbitmq.lra-poc.svc.cluster.local:5672 
+          ports:
+             - containerPort: 4001       

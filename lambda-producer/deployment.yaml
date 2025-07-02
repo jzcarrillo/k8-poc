@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lambda-producer
+  namespace: lra-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lambda-producer
+  template:
+    metadata:
+      labels:
+        app: lambda-producer
+    spec:
+      restartPolicy: Always   
+      containers:
+        - name: lambda-producer
+          image: lambda-producer:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 4000
