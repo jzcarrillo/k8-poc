@@ -1,27 +1,11 @@
 const amqp = require('amqplib');
 const express = require('express');
-const { Pool } = require('pg'); // ✅ PostgreSQL client
+const axios = require('axios');
 
-const QUEUE = 'test-queue';
+const QUEUE = 'submit_queue'; // match producer queue
 const RABBITMQ_URL = 'amqp://myuser:mypass@rabbitmq.lra-poc.svc.cluster.local:5672';
+const BACKEND_URL = 'http://backend-service.lra-poc.svc.cluster.local:3000/process';
 const PORT = 4001;
-
-// ✅ PostgreSQL configuration
-const pool = new Pool({
-  host: 'postgres-service.lra-poc.svc.cluster.local',
-  port: 5432,
-  user: 'myuser',
-  password: 'mypass',
-  database: 'mydb',
-});
-
-// ✅ Test DB connection at startup
-pool.connect()
-  .then(() => console.log('[✓] Connected to PostgreSQL'))
-  .catch(err => {
-    console.error('[✗] Failed to connect to PostgreSQL at startup:', err);
-    process.exit(1);
-  });
 
 let channel;
 
@@ -44,20 +28,21 @@ async function connectConsumer(retries = 10) {
 
       console.log('[✓] Connected to RabbitMQ and queue asserted');
 
-      // ✅ Start consuming and insert to DB
+      // ✅ Start consuming and POST to backend
       channel.consume(QUEUE, async (msg) => {
         if (msg !== null) {
           const content = msg.content.toString();
           console.log(`[←] Consumed message: ${content}`);
 
           try {
-            await pool.query('INSERT INTO test_table (message) VALUES ($1)', [content]);
-            console.log('[✓] Inserted to PostgreSQL');
+            const payload = JSON.parse(content); // message must be valid JSON
+            const response = await axios.post(BACKEND_URL, payload);
+            console.log(`[✓] Forwarded to backend. Status: ${response.status}`);
+            channel.ack(msg);
           } catch (err) {
-            console.error('[✗] Failed to insert into DB:', err); // full error
+            console.error('[✗] Failed to forward to backend:', err.message);
+            // Optionally: channel.nack(msg); to requeue
           }
-
-          channel.ack(msg);
         }
       });
 
@@ -84,4 +69,17 @@ app.get('/health', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[HTTP] Health endpoint running on port ${PORT}`);
+});
+
+app.get('/', (req, res) => {
+  const statusHtml = '<span style="color:green;">✅ Lambda Consumer is up and running</span>';
+
+  res.send(`
+    <html>
+      <head><title>Lambda Consumer</title></head>
+      <body style="font-family:sans-serif; padding:20px;">
+        <h2>${statusHtml}</h2>
+      </body>
+    </html>
+  `);
 });

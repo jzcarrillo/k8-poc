@@ -6,10 +6,13 @@ const { Client } = require('pg');
 const app = express();
 const PORT = 3000;
 
-// Redis client (K8s service name: redis)
+// Parse JSON body
+app.use(express.json());
+
+// Redis client
 const redis = new Redis({ host: 'redis', port: 6379 });
 
-// PostgreSQL client (K8s service name: postgres-service)
+// PostgreSQL client
 const pgClient = new Client({
   host: 'postgres-service',
   port: 5432,
@@ -22,42 +25,7 @@ pgClient.connect()
   .then(() => console.log('[✓] Connected to PostgreSQL'))
   .catch(err => console.error('[✗] PostgreSQL connection error:', err.message));
 
-// RabbitMQ setup (K8s service name: rabbitmq)
-let channel, connection;
-
-async function connectToRabbitMQ(retries = 10) {
-  while (retries) {
-    try {
-      connection = await amqp.connect('amqp://user:pass@rabbitmq.lra-poc.svc.cluster.local:5672');
-      channel = await connection.createChannel();
-      await channel.assertQueue('test-queue');
-      console.log('[✓] Connected to RabbitMQ');
-
-      // Consume messages
-      channel.consume('test-queue', msg => {
-        const content = msg.content.toString();
-        console.log(`[→] Received from RabbitMQ: ${content}`);
-        channel.ack(msg);
-      });
-
-      return;
-    } catch (err) {
-      console.error(`[✗] RabbitMQ connection error: ${err.message}. Retrying in 3s...`);
-      retries--;
-      await new Promise(res => setTimeout(res, 3000));
-    }
-  }
-  process.exit(1);
-}
-
-connectToRabbitMQ();
-
-// Health check
-app.get('/', (req, res) => {
-  res.send('✅ Backend is running and connected');
-});
-
-// Redis Set
+// Redis: Set a key
 app.get('/set', async (req, res) => {
   try {
     await redis.set('mykey', 'Hello from Redis!');
@@ -68,7 +36,7 @@ app.get('/set', async (req, res) => {
   }
 });
 
-// Redis Get
+// Redis: Get a key
 app.get('/get', async (req, res) => {
   try {
     const value = await redis.get('mykey');
@@ -79,7 +47,7 @@ app.get('/get', async (req, res) => {
   }
 });
 
-// PostgreSQL test
+// PostgreSQL test route
 app.get('/dbtest', async (req, res) => {
   try {
     await pgClient.query(`CREATE TABLE IF NOT EXISTS test_table (id SERIAL PRIMARY KEY, message TEXT)`);
@@ -87,4 +55,57 @@ app.get('/dbtest', async (req, res) => {
     const result = await pgClient.query(`SELECT * FROM test_table`);
     res.json(result.rows);
   } catch (err) {
-    console.error('[✗] PostgreSQL error:', err.
+    console.error('[✗] PostgreSQL error:', err.message);
+    res.status(500).send('PostgreSQL error');
+  }
+});
+
+// Lambda Consumer POST endpoint
+app.post('/process', async (req, res) => {
+  const payload = req.body;
+
+  if (!payload || Object.keys(payload).length === 0) {
+    return res.status(400).json({ message: '❌ Empty or invalid payload' });
+  }
+
+  try {
+    const message = JSON.stringify(payload);
+    await pgClient.query(`CREATE TABLE IF NOT EXISTS test_table (id SERIAL PRIMARY KEY, message TEXT)`);
+    await pgClient.query(`INSERT INTO test_table (message) VALUES ($1)`, [message]);
+    console.log('[✓] Message inserted into PostgreSQL from Lambda Consumer:', payload);
+    res.status(201).json({ message: '✅ Stored in DB' });
+  } catch (err) {
+    console.error('[✗] Failed to insert into DB:', err.message);
+    res.status(500).json({ message: '❌ PostgreSQL insert failed' });
+  }
+});
+
+// ✅ Health Check Route
+app.get('/', async (req, res) => {
+  try {
+    await pgClient.query('SELECT 1'); // DB connectivity check
+    res.send(`
+      <html>
+        <head><title>Backend</title></head>
+        <body style="font-family:sans-serif; padding:20px;">
+          <h2 style="color:green;">✅ Backend is running and connected to PostgreSQL</h2>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error('❌ DB Connection Error:', err.message);
+    res.status(500).send(`
+      <html>
+        <head><title>Backend</title></head>
+        <body style="font-family:sans-serif; padding:20px;">
+          <h2 style="color:red;">❌ Backend is running but cannot connect to PostgreSQL</h2>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// Start Express server
+app.listen(PORT, () => {
+  console.log(`🚀 Backend listening on port ${PORT}`);
+});
