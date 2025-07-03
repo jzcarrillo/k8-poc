@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>K8 - POC</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: Arial, sans-serif;
       max-width: 400px;
@@ -14,26 +18,69 @@
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-    input, button {
-      width: 100%;
-      padding: 10px;
+
+    form {
+      display: flex;
+      gap: 10px;
       margin-top: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px;
       font-size: 16px;
     }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
     .status {
       margin-top: 15px;
       font-weight: bold;
+    }
+
+    ul {
+      margin-top: 20px;
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 8px;
+      background: #f9f9f9;
+      padding: 8px;
+      border-radius: 5px;
+      word-break: break-word;
     }
   </style>
 </head>
 <body>
   <h2>Send a Message</h2>
-  <input type="text" id="messageInput" placeholder="Type your message..." />
-  <button onclick="sendMessage()">Submit</button>
+  <form onsubmit="sendMessage(event)">
+    <input type="text" id="messageInput" placeholder="Type your message..." />
+    <button type="submit">Submit</button>
+  </form>
   <div class="status" id="statusMsg"></div>
 
+  <h3>Submitted Messages:</h3>
+  <ul id="messageList"></ul>
+
   <script>
-    async function sendMessage() {
+    function escapeHtml(text) {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    async function sendMessage(e) {
+      e.preventDefault();
       const input = document.getElementById('messageInput');
       const status = document.getElementById('statusMsg');
 
@@ -44,7 +91,7 @@
       }
 
       try {
-        const res = await fetch('http://localhost:4000/produce', {
+        const res = await fetch('http://localhost:4000/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: input.value })
@@ -54,6 +101,7 @@
           status.textContent = "✅ Message sent!";
           status.style.color = "green";
           input.value = "";
+          loadData();
         } else {
           const errText = await res.text();
           status.textContent = "❌ Failed: " + errText;
@@ -63,7 +111,37 @@
         status.textContent = "❌ Error: " + err.message;
         status.style.color = "red";
       }
+
+      setTimeout(() => { status.textContent = ""; }, 5000);
     }
+
+    async function loadData() {
+      try {
+        const res = await fetch('http://localhost:3000/data');
+        const data = await res.json();
+        const list = document.getElementById('messageList');
+        list.innerHTML = '';
+
+        data.forEach(entry => {
+          const li = document.createElement('li');
+          let msg = entry.message;
+
+          if (typeof msg === 'object' && msg.message) {
+            msg = msg.message;
+          }
+
+          li.innerHTML = `<strong>ID:</strong> ${entry.id}<br><strong>Message:</strong> ${escapeHtml(msg)}`;
+          list.appendChild(li);
+        });
+      } catch (err) {
+        console.error('Failed to load data:', err.message);
+      }
+    }
+
+    window.onload = () => {
+      loadData();
+      setInterval(loadData, 10000); // auto-refresh
+    };
   </script>
 </body>
 </html>

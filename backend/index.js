@@ -109,3 +109,24 @@ app.get('/', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Backend listening on port ${PORT}`);
 });
+
+// 🔍 Fetch all submitted messages from test_table
+app.get('/data', async (req, res) => {
+  try {
+    const result = await pgClient.query(`SELECT id, message FROM test_table ORDER BY id DESC`);
+    
+    // Parse JSON strings into real objects if possible
+    const rows = result.rows.map(row => {
+      try {
+        return { id: row.id, ...JSON.parse(row.message) };
+      } catch {
+        return { id: row.id, message: row.message };
+      }
+    });
+
+    res.json(rows);
+  } catch (err) {
+    console.error('[✗] Failed to fetch from DB:', err.message);
+    res.status(500).json({ error: 'Failed to fetch data' });
+  }
+});
