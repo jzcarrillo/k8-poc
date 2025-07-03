@@ -112,5 +112,27 @@ Start-Process powershell -WindowStyle Hidden -ArgumentList @(
     "kubectl port-forward svc/rabbitmq-service 15672:15672 -n $namespace"
 )
 
-
 Write-Host "`nDEPLOYMENT COMPLETE - Ready for Testing"
+
+Write-Host "Starting API Test Validation..." -ForegroundColor Cyan
+
+# Define test data and endpoint
+$uri = "http://localhost:4000/submit"
+$headers = @{ "Content-Type" = "application/json" }
+$body = '{"message":"Hello from test validation"}'
+
+try {
+    $response = Invoke-RestMethod -Uri $uri -Method POST -Headers $headers -Body $body -TimeoutSec 5
+
+    if ($response -ne $null) {
+        Write-Host "[PASS] API Test Passed: Received valid response" -ForegroundColor Green
+        Write-Host "Response: $($response | ConvertTo-Json -Depth 5)" -ForegroundColor DarkGray
+    }
+    else {
+        Write-Host "[FAIL] API Test Failed: No response body" -ForegroundColor Red
+    }
+}
+catch {
+    Write-Host "[FAIL] API Test Failed: $($_.Exception.Message)" -ForegroundColor Red
+}
+
