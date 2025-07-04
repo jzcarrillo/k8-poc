@@ -111,7 +111,7 @@ app.listen(PORT, () => {
 });
 
 // 🔍 Fetch all submitted messages from test_table
-app.get('/data', async (req, res) => {
+app.get('/logs', async (req, res) => {
   try {
     const result = await pgClient.query(`SELECT id, message FROM test_table ORDER BY id DESC`);
     

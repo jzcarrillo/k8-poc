@@ -117,7 +117,7 @@
 
     async function loadData() {
       try {
-        const res = await fetch('http://localhost:3000/data');
+        const res = await fetch('http://localhost:3000/logs');
         const data = await res.json();
         const list = document.getElementById('messageList');
         list.innerHTML = '';

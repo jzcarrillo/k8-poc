@@ -9,7 +9,7 @@ $body = '{"message":"Hello from test validation"}'
 $passCount = 0
 $failCount = 0
 
-for ($i = 1; $i -le 20; $i++) {
+for ($i = 1; $i -le 30; $i++) {
     Write-Host "`nRequest #$i"
 
     try {
