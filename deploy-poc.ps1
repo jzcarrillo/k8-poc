@@ -190,3 +190,42 @@ try {
 catch {
     Write-Warning ('Failed to deploy load-tester or monitor HPA: {0}' -f $_.Exception.Message)
 }
+
+Write-Host "`nSTEP 8: Smoke Test via Service LoadBalancer/NodePort"
+
+# Using localhost because port-forwarding is set up in Step 6
+$externalIP = "localhost"
+$nodeIP     = "localhost"
+
+Write-Host "DEBUG: externalIP = '$externalIP'"
+Write-Host "DEBUG: nodeIP     = '$nodeIP'"
+
+try {
+    # LoadBalancer style (via port-forward 8081)
+    $urlLB = "http://{0}:8081/submit" -f $externalIP
+    Write-Host "Testing via LoadBalancer ($urlLB)..."
+    $responseLB = Invoke-RestMethod -Uri $urlLB `
+        -Method POST `
+        -Headers @{ "Content-Type" = "application/json" } `
+        -Body '{"message":"smoke test"}' `
+        -TimeoutSec 5
+    Write-Host "LoadBalancer Response:"
+    $responseLB | ConvertTo-Json -Depth 5 | Write-Host
+
+    # NodePort style (assuming port-forward from NodePort 30081)
+    $urlNP = "http://{0}:30081/submit" -f $nodeIP
+    Write-Host "`nTesting via NodePort ($urlNP)..."
+    $responseNP = Invoke-RestMethod -Uri $urlNP `
+        -Method POST `
+        -Headers @{ "Content-Type" = "application/json" } `
+        -Body '{"message":"smoke test"}' `
+        -TimeoutSec 5
+    Write-Host "NodePort Response:"
+    $responseNP | ConvertTo-Json -Depth 5 | Write-Host
+
+    Write-Host "`nSmoke test completed successfully" -ForegroundColor Cyan
+}
+catch {
+    Write-Warning ('Smoke test failed: {0}' -f $_.Exception.Message)
+}
+

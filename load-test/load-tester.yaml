@@ -18,7 +18,7 @@ spec:
             curl -s --max-time 2 -o /dev/null -w "✅ Sent request #$i\n" \
               -X POST http://api-gateway.lra-poc.svc.cluster.local:8081/submit \
               -H "Content-Type: application/json" \
-              --data '{"message":"stress"}'
+              --data '{"message":"stress testing"}'
             i=$((i+1))
             sleep 0.001
           done

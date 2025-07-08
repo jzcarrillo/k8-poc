@@ -1,7 +1,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { createProxyMiddleware } = require('http-proxy-middleware');
 const client = require('prom-client');
+const axios = require('axios');
 
 const app = express();
 const PORT = 8081;
@@ -51,43 +51,32 @@ const submitLimiter = rateLimit({
   max: 20,
   handler: (req, res) => {
     throttledRequests.inc({ route: '/submit' });
-    res.status(429).json({ message: '⚠️ Too many requests to /submit' });
+    res.status(429).json({ message: 'Too many requests to /submit' });
   },
 });
 
-// === Proxy with fixed body forwarding
-app.use(
-  '/submit',
-  (req, res, next) => {
-    console.log(`[LOG] Incoming ${req.method} request to ${req.originalUrl}`);
-    next();
-  },
-  submitLimiter,
-  createProxyMiddleware({
-    target: 'http://lambda-producer-service:4000',
-    changeOrigin: true,
-    selfHandleResponse: false, // default
-    onProxyReq: (proxyReq, req, res) => {
-      if (req.body) {
-        const bodyData = JSON.stringify(req.body);
-        proxyReq.setHeader('Content-Type', 'application/json');
-        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-        proxyReq.write(bodyData);
-        // ❌ NEVER do proxyReq.end()
+// === POST /submit forwarding to lambda-producer-service
+app.post('/submit', submitLimiter, async (req, res) => {
+  console.log(`[LOG] Incoming POST request to /submit`);
+  try {
+    const response = await axios.post(
+      'http://lambda-producer-service:4000/submit', // ✅ fixed endpoint
+      req.body,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 5000,
       }
-      console.log(`[→] Forwarding to: ${req.originalUrl}`);
-    },
-    onProxyRes: (proxyRes, req, res) => {
-      proxyRes.headers['Access-Control-Allow-Origin'] = FRONTEND;
-      console.log(`[✅ SUCCESS] ${req.method} ${req.originalUrl} ← ${proxyRes.statusCode}`);
-    },
-    onError: (err, req, res) => {
-      console.error(`[❌ ERROR] ${req.method} ${req.originalUrl} → lambda-producer-service`);
-      console.error(`[❌ ERROR] ${err.message}`);
-      res.status(500).send('Proxy error: ' + err.message);
-    }
-  })
-);
+    );
+
+    console.log(`[✅ SUCCESS] Forwarded to lambda-producer-service: ${response.status}`);
+    res.status(response.status).json(response.data);
+  } catch (err) {
+    console.error(`[❌ ERROR] Forwarding failed: ${err.message}`);
+    res.status(500).json({ error: 'Proxy error', message: err.message });
+  }
+});
 
 // === Start server
 app.listen(PORT, () => {

@@ -5,7 +5,7 @@ metadata:
   name: api-gateway
   namespace: lra-poc
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: api-gateway
   ports:
