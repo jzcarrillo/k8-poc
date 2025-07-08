@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: load-tester
+  namespace: lra-poc
+spec:
+  restartPolicy: Never
+  containers:
+    - name: curl
+      image: alpine/curl
+      command:
+        - /bin/sh
+        - -c
+        - |
+          i=0
+          while [ $i -lt 2000 ]; do
+            echo "🔥 Sending request #$i..."
+            curl -s --max-time 2 -o /dev/null -w "✅ Sent request #$i\n" \
+              -X POST http://api-gateway.lra-poc.svc.cluster.local:8081/submit \
+              -H "Content-Type: application/json" \
+              --data '{"message":"stress"}'
+            i=$((i+1))
+            sleep 0.001
+          done

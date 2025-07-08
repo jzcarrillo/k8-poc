@@ -1,13 +1,17 @@
 Write-Host "Starting API Test Validation..." -ForegroundColor Cyan
 
 # Define test data and endpoint
-$uri = "http://localhost:4000/submit"
+$uri = "http://localhost:8081/submit"
 $headers = @{ "Content-Type" = "application/json" }
 $body = '{"message":"Hello from test validation"}'
 
 # Counter variables
 $passCount = 0
 $failCount = 0
+
+# Optional: Wait before sending the first request
+Write-Host "Waiting for services to stabilize..." -ForegroundColor Yellow
+Start-Sleep -Seconds 5
 
 for ($i = 1; $i -le 30; $i++) {
     Write-Host "`nRequest #$i"
@@ -25,9 +29,14 @@ for ($i = 1; $i -le 30; $i++) {
         }
     }
     catch {
-        Write-Host "[FAIL] Request #${i}: $($_.Exception.Message)" -ForegroundColor Red
+        # Extract HTTP status if available
+        $statusCode = $_.Exception.Response.StatusCode.value__
+        Write-Host "[FAIL] Request #${i}: HTTP $statusCode - $($_.Exception.Message)" -ForegroundColor Red
         $failCount++
     }
+
+    # Delay between requests to avoid flooding
+    Start-Sleep -Milliseconds 200
 }
 
 # Summary

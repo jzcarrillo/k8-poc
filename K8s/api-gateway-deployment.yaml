@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api-gateway
-  namespace: lra-poc  # ✅ specify namespace
+  namespace: lra-poc
 spec:
   replicas: 1
   selector:
@@ -15,7 +15,12 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: api-gateway:latest  # ✅ replace with your Docker Hub image
+          image: api-gateway:latest
           ports:
             - containerPort: 8081
           imagePullPolicy: Never
+          resources:
+            requests:
+              cpu: "40m"
+            limits:
+              cpu: "200m"

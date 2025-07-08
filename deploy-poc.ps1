@@ -53,13 +53,36 @@ $deploymentFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*-deployment.y
 $serviceFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*-service.yaml"
 
 foreach ($file in $deploymentFiles) {
-    Write-Host "Applying deployment: $($file.FullName)"
+    $content = Get-Content $file.FullName -Raw
+
+    # 🔒 Safety check: prevent applying unintended lambda-producer-service deployment
+    if ($content -match 'name:\s*lambda-producer-service' -and $file.Name -notlike "*lambda-producer-service*") {
+        Write-Warning "⚠️ Skipping suspicious deployment: $($file.FullName) → Declares lambda-producer-service"
+        continue
+    }
+
+    Write-Host "✅ Applying deployment: $($file.FullName)"
     kubectl apply -f $file.FullName -n $namespace
 }
 
 foreach ($file in $serviceFiles) {
-    Write-Host "Applying service: $($file.FullName)"
-    kubectl apply -f $file.FullName -n $namespace
+    $content = Get-Content $file.FullName -Raw
+
+    if ($content -match 'kind:\s*Service') {
+        Write-Host "✅ Applying service: $($file.FullName)"
+        kubectl apply -f $file.FullName -n $namespace
+    } else {
+        Write-Warning "⚠️ Skipping: Not a Service kind → $($file.FullName)"
+    }
+}
+
+Write-Host "STEP 3.5: Apply HPA for api-gateway"
+try {
+    kubectl delete hpa api-gateway -n $namespace --ignore-not-found
+    kubectl autoscale deployment api-gateway --cpu-percent=30 --min=1 --max=5 -n $namespace
+    Write-Host "✅ HPA for api-gateway created successfully"
+} catch {
+    Write-Warning "⚠️ Failed to apply HPA: $($_.Exception.Message)"
 }
 
 Write-Host "STEP 4: Wait for Pods to be Ready"
@@ -136,3 +159,34 @@ catch {
     Write-Host "[FAIL] API Test Failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
+Write-Host "STEP 7: Trigger Autoscaling via Load Generator (load-tester pod)"
+
+try {
+    Write-Host "Deleting existing load-tester pod (if any)..."
+    kubectl delete pod load-tester -n $namespace --ignore-not-found | Out-Null
+
+    Write-Host "Deploying load-tester pod..."
+    kubectl apply -f "$PSScriptRoot\load-test\load-tester.yaml" | Out-Null
+
+    Write-Host "Waiting for load-tester pod to enter 'Running' state..."
+    kubectl wait --for=condition=Ready pod/load-tester -n $namespace --timeout=60s
+
+    Write-Host "Streaming logs from load-tester (new terminal)..."
+    Start-Process powershell -ArgumentList @(
+        "-NoProfile",
+        "-NoExit",
+        "-Command",
+        "kubectl logs load-tester -n $namespace --follow"
+    )
+
+    Write-Host "Watching HPA behavior in real-time (new terminal)..."
+    Start-Process powershell -ArgumentList @(
+        "-NoProfile",
+        "-NoExit",
+        "-Command",
+        "kubectl get hpa -n $namespace --watch"
+    )
+}
+catch {
+    Write-Warning ('Failed to deploy load-tester or monitor HPA: {0}' -f $_.Exception.Message)
+}

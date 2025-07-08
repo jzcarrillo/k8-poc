@@ -1,13 +1,14 @@
+# api-gateway-service-nodeport.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: api-gateway-service
-  namespace: lra-poc  # ✅ include this to place it in the correct namespace
+  name: api-gateway
+  namespace: lra-poc
 spec:
+  type: NodePort
   selector:
     app: api-gateway
   ports:
-    - protocol: TCP
-      port: 8081
+    - port: 8081
       targetPort: 8081
-  type: ClusterIP
+      nodePort: 30081
