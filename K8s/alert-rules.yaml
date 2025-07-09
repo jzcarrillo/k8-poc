@@ -9,22 +9,22 @@ data:
       - name: k8s-alerts
         rules:
           - alert: HighCPUUsage
-            expr: rate(container_cpu_usage_seconds_total{container!="", pod=~"api-gateway.*"}[1m]) > 0.1
+            expr: rate(process_cpu_seconds_total{job="api-gateway"}[1m]) > 0.005
             for: 30s
             labels:
               severity: warning
             annotations:
               summary: "High CPU usage detected on API Gateway"
-              description: "CPU usage is above 10% for more than 30 seconds on pod {{ $labels.pod }}."
+              description: "App-level CPU usage (from prom-client) is above threshold for more than 30 seconds on pod {{ $labels.pod }}."
 
           - alert: TooManyReplicas
-            expr: count(kube_pod_info{pod=~"api-gateway.*", namespace="lra-poc"}) > 3
+            expr: count(up{job="api-gateway"}) > 3
             for: 30s
             labels:
               severity: warning
             annotations:
               summary: "Too many API Gateway pods running"
-              description: "More than 3 pods of API Gateway are running in the 'lra-poc' namespace."
+              description: "More than 3 'up' targets (active pods) of API Gateway are reporting to Prometheus."
 
           - alert: TooManyRequests
             expr: rate(http_requests_total{status="429", pod=~"api-gateway.*"}[1m]) > 1
