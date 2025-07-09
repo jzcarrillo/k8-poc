@@ -47,7 +47,7 @@ foreach ($service in $services) {
 
 Start-Sleep -Seconds 2
 
-Write-Host "STEP 3: Apply PVC and Secret YAMLs"
+Write-Host "STEP 3: Apply Deployment, Service, Config, PVC and Secret YAMLs"
 
 # === PVCs ===
 $pvcFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*pvc.yaml"
@@ -107,6 +107,19 @@ foreach ($file in $serviceFiles) {
     }
 }
 
+# === ConfigMaps and Custom Configs ===
+$configFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*-config.yaml"
+
+foreach ($file in $configFiles) {
+    $content = Get-Content $file.FullName -Raw
+
+    if ($content -match 'kind:\s*ConfigMap') {
+        Write-Host "Applying ConfigMap: $($file.FullName)"
+        kubectl apply -f $file.FullName -n $namespace
+    } else {
+        Write-Warning "Skipping: Not a ConfigMap kind → $($file.FullName)"
+    }
+}
 Write-Host "STEP 3.5: Apply HPA for api-gateway"
 try {
     kubectl delete hpa api-gateway -n $namespace --ignore-not-found
@@ -190,11 +203,12 @@ catch {
     Write-Host "[FAIL] API Test Failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
-Write-Host "STEP 7: Trigger Autoscaling via Load Generator (load-tester pod)"
+Write-Host "STEP 7: Trigger Autoscaling via Load Generator (load-tester Pod)"
 
 try {
     Write-Host "Deleting existing load-tester pod (if any)..."
     kubectl delete pod load-tester -n $namespace --ignore-not-found | Out-Null
+    Start-Sleep -Seconds 2
 
     Write-Host "Deploying load-tester pod..."
     kubectl apply -f "$PSScriptRoot\load-test\load-tester.yaml" | Out-Null
@@ -202,15 +216,15 @@ try {
     Write-Host "Waiting for load-tester pod to enter 'Running' state..."
     kubectl wait --for=condition=Ready pod/load-tester -n $namespace --timeout=60s
 
-    Write-Host "Streaming logs from load-tester (sanewme terminal)..."
+    Write-Host "Opening log stream from load-tester in a new terminal..."
     Start-Process powershell -ArgumentList @(
         "-NoProfile",
         "-NoExit",
         "-Command",
         "kubectl logs load-tester -n $namespace --follow --timestamps"
-        )
+    )
 
-    Write-Host "Watching HPA behavior in real-time (new terminal)..."
+    Write-Host "Watching HPA scaling behavior in another new terminal..."
     Start-Process powershell -ArgumentList @(
         "-NoProfile",
         "-NoExit",
@@ -219,7 +233,7 @@ try {
     )
 }
 catch {
-    Write-Warning ('Failed to deploy load-tester or monitor HPA: {0}' -f $_.Exception.Message)
+    Write-Warning ('Failed to deploy load-tester pod or monitor HPA: {0}' -f $_.Exception.Message)
 }
 
 Write-Host "`nSTEP 8: Smoke Test via Service LoadBalancer/NodePort"

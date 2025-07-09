@@ -3,22 +3,24 @@ kind: Pod
 metadata:
   name: load-tester
   namespace: lra-poc
+  labels:
+    app: load-tester
 spec:
   restartPolicy: Never
   containers:
     - name: curl
       image: alpine/curl
-      command:
-        - /bin/sh
-        - -c
+      command: ["/bin/sh", "-c"]
+      args:
         - |
-          i=0
-          while [ $i -lt 2000 ]; do
-            echo "🔥 Sending request #$i..."
-            curl -s --max-time 2 -o /dev/null -w "✅ Sent request #$i\n" \
-              -X POST http://api-gateway.lra-poc.svc.cluster.local:8081/submit \
-              -H "Content-Type: application/json" \
-              --data '{"message":"stress testing"}'
+          i=1
+          while [ $i -le 2000 ]; do
+            echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ') 🔥 Sending request #$i..."
+            curl -s -X POST http://api-gateway.lra-poc.svc.cluster.local:8081/submit \
+              -H 'Content-Type: application/json' \
+              -d '{"message":"load test"}' \
+              --max-time 5
+            echo "✅ Sent request #$i"
             i=$((i+1))
-            sleep 0.001
+            sleep 0.05
           done
