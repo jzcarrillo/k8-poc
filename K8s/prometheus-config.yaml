@@ -3,8 +3,6 @@ kind: ConfigMap
 metadata:
   name: prometheus-config
   namespace: lra-poc
-  labels:
-    name: prometheus-config
 data:
   prometheus.yml: |
     global:
@@ -14,3 +12,6 @@ data:
       - job_name: 'api-gateway'
         static_configs:
           - targets: ['api-gateway.lra-poc.svc.cluster.local:8081']
+
+    rule_files:
+      - /etc/prometheus/rules/*.yaml

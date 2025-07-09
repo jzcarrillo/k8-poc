@@ -13,7 +13,7 @@ $failCount = 0
 Write-Host "Waiting for services to stabilize..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5
 
-for ($i = 1; $i -le 30; $i++) {
+for ($i = 1; $i -le 1000; $i++) {
     Write-Host "`nRequest #$i"
 
     try {

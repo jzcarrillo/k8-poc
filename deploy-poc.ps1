@@ -120,6 +120,25 @@ foreach ($file in $configFiles) {
         Write-Warning "Skipping: Not a ConfigMap kind → $($file.FullName)"
     }
 }
+
+# === Apply Prometheus Alert Rules (ConfigMaps with alert-rules.yaml inside) ===
+
+$yamlDir = "."  # or specify your folder path here
+$namespace = "lra-poc"
+
+$rulesFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*rules.yaml"
+
+foreach ($file in $rulesFiles) {
+    $content = Get-Content $file.FullName -Raw
+
+    if ($content -match 'kind:\s*ConfigMap' -and $content -match 'alert-rules\.yaml') {
+        Write-Host "Applying Alert Rule ConfigMap: $($file.FullName)"
+        kubectl apply -f $file.FullName -n $namespace
+    } else {
+        Write-Warning "Skipping: Not a valid alert-rules ConfigMap → $($file.FullName)"
+    }
+}
+
 Write-Host "STEP 3.5: Apply HPA for api-gateway"
 try {
     kubectl delete hpa api-gateway -n $namespace --ignore-not-found

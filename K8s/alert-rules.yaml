@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alert-rules
+  namespace: lra-poc
+data:
+  alert-rules.yaml: |
+    groups:
+      - name: k8s-alerts
+        rules:
+          - alert: HighCPUUsage
+            expr: rate(container_cpu_usage_seconds_total{container!="", pod=~"api-gateway.*"}[1m]) > 0.1
+            for: 30s
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU usage detected on API Gateway"
+              description: "CPU usage is above 10% for more than 30 seconds on pod {{ $labels.pod }}."
+
+          - alert: TooManyReplicas
+            expr: count(kube_pod_info{pod=~"api-gateway.*", namespace="lra-poc"}) > 3
+            for: 30s
+            labels:
+              severity: warning
+            annotations:
+              summary: "Too many API Gateway pods running"
+              description: "More than 3 pods of API Gateway are running in the 'lra-poc' namespace."
+
+          - alert: TooManyRequests
+            expr: rate(http_requests_total{status="429", pod=~"api-gateway.*"}[1m]) > 1
+            for: 30s
+            labels:
+              severity: critical
+            annotations:
+              summary: "Too many requests resulting in HTTP 429"
+              description: "More than 1 HTTP 429 response per second from API Gateway in the last 1 minute."

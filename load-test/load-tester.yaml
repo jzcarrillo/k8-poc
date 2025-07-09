@@ -14,13 +14,13 @@ spec:
       args:
         - |
           i=1
-          while [ $i -le 2000 ]; do
-            echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ') 🔥 Sending request #$i..."
+          while [ $i -le 10000 ]; do
+            echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ') Sending request #$i..."
             curl -s -X POST http://api-gateway.lra-poc.svc.cluster.local:8081/submit \
               -H 'Content-Type: application/json' \
               -d '{"message":"load test"}' \
               --max-time 5
-            echo "✅ Sent request #$i"
+            echo "Sent request #$i"
             i=$((i+1))
-            sleep 0.05
+            sleep 0.01
           done
