@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const client = require('prom-client');
 const axios = require('axios');
+const os = require('os');
 
 const app = express();
 const PORT = 8081;
@@ -57,7 +58,7 @@ const submitLimiter = rateLimit({
 
 // === POST /submit forwarding to lambda-producer-service
 app.post('/submit', submitLimiter, async (req, res) => {
-  console.log(`[LOG] Incoming POST request to /submit`);
+  console.log(`[LOG] Incoming POST request to /submit from ${os.hostname()}`);
   try {
     const response = await axios.post(
       'http://lambda-producer-service:4000/submit', // ✅ fixed endpoint

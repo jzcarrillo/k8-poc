@@ -47,32 +47,63 @@ foreach ($service in $services) {
 
 Start-Sleep -Seconds 2
 
-Write-Host "STEP 3: Apply All K8s YAMLs (Deployment and Service)"
+Write-Host "STEP 3: Apply PVC and Secret YAMLs"
 
+# === PVCs ===
+$pvcFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*pvc.yaml"
+
+foreach ($file in $pvcFiles) {
+    $content = Get-Content $file.FullName -Raw
+
+    if ($content -match 'kind:\s*PersistentVolumeClaim') {
+        Write-Host "Applying PVC: $($file.FullName)"
+        kubectl apply -f $file.FullName -n $namespace
+    } else {
+        Write-Warning "Skipping: Not a PVC kind → $($file.FullName)"
+    }
+}
+
+# === Secrets ===
+$secretFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*secret.yaml"
+
+foreach ($file in $secretFiles) {
+    $content = Get-Content $file.FullName -Raw
+
+    if ($content -match 'kind:\s*Secret') {
+        Write-Host "Applying Secret: $($file.FullName)"
+        kubectl apply -f $file.FullName -n $namespace
+    } else {
+        Write-Warning "Skipping: Not a Secret kind → $($file.FullName)"
+    }
+}
+
+# === Deployments ===
 $deploymentFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*-deployment.yaml"
-$serviceFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*-service.yaml"
 
 foreach ($file in $deploymentFiles) {
     $content = Get-Content $file.FullName -Raw
 
     # 🔒 Safety check: prevent applying unintended lambda-producer-service deployment
     if ($content -match 'name:\s*lambda-producer-service' -and $file.Name -notlike "*lambda-producer-service*") {
-        Write-Warning "⚠️ Skipping suspicious deployment: $($file.FullName) → Declares lambda-producer-service"
+        Write-Warning "Skipping suspicious deployment: $($file.FullName) → Declares lambda-producer-service"
         continue
     }
 
-    Write-Host "✅ Applying deployment: $($file.FullName)"
+    Write-Host "Applying deployment: $($file.FullName)"
     kubectl apply -f $file.FullName -n $namespace
 }
+
+# === Services ===
+$serviceFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*-service.yaml"
 
 foreach ($file in $serviceFiles) {
     $content = Get-Content $file.FullName -Raw
 
     if ($content -match 'kind:\s*Service') {
-        Write-Host "✅ Applying service: $($file.FullName)"
+        Write-Host "Applying service: $($file.FullName)"
         kubectl apply -f $file.FullName -n $namespace
     } else {
-        Write-Warning "⚠️ Skipping: Not a Service kind → $($file.FullName)"
+        Write-Warning "Skipping: Not a Service kind → $($file.FullName)"
     }
 }
 
@@ -80,9 +111,9 @@ Write-Host "STEP 3.5: Apply HPA for api-gateway"
 try {
     kubectl delete hpa api-gateway -n $namespace --ignore-not-found
     kubectl autoscale deployment api-gateway --cpu-percent=30 --min=1 --max=5 -n $namespace
-    Write-Host "✅ HPA for api-gateway created successfully"
+    Write-Host "HPA for api-gateway created successfully"
 } catch {
-    Write-Warning "⚠️ Failed to apply HPA: $($_.Exception.Message)"
+    Write-Warning "Failed to apply HPA: $($_.Exception.Message)"
 }
 
 Write-Host "STEP 4: Wait for Pods to be Ready"
@@ -171,13 +202,13 @@ try {
     Write-Host "Waiting for load-tester pod to enter 'Running' state..."
     kubectl wait --for=condition=Ready pod/load-tester -n $namespace --timeout=60s
 
-    Write-Host "Streaming logs from load-tester (new terminal)..."
+    Write-Host "Streaming logs from load-tester (sanewme terminal)..."
     Start-Process powershell -ArgumentList @(
         "-NoProfile",
         "-NoExit",
         "-Command",
-        "kubectl logs load-tester -n $namespace --follow"
-    )
+        "kubectl logs load-tester -n $namespace --follow --timestamps"
+        )
 
     Write-Host "Watching HPA behavior in real-time (new terminal)..."
     Start-Process powershell -ArgumentList @(
@@ -193,7 +224,6 @@ catch {
 
 Write-Host "`nSTEP 8: Smoke Test via Service LoadBalancer/NodePort"
 
-# Using localhost because port-forwarding is set up in Step 6
 $externalIP = "localhost"
 $nodeIP     = "localhost"
 
@@ -201,7 +231,9 @@ Write-Host "DEBUG: externalIP = '$externalIP'"
 Write-Host "DEBUG: nodeIP     = '$nodeIP'"
 
 try {
-    # LoadBalancer style (via port-forward 8081)
+    $ErrorActionPreference = "Stop"
+
+    # LoadBalancer test
     $urlLB = "http://{0}:8081/submit" -f $externalIP
     Write-Host "Testing via LoadBalancer ($urlLB)..."
     $responseLB = Invoke-RestMethod -Uri $urlLB `
@@ -210,9 +242,13 @@ try {
         -Body '{"message":"smoke test"}' `
         -TimeoutSec 5
     Write-Host "LoadBalancer Response:"
-    $responseLB | ConvertTo-Json -Depth 5 | Write-Host
+    if ($responseLB) {
+        $responseLB | ConvertTo-Json -Depth 5 | Write-Host
+    } else {
+        Write-Host "No response body from LoadBalancer"
+    }
 
-    # NodePort style (assuming port-forward from NodePort 30081)
+    # NodePort test
     $urlNP = "http://{0}:30081/submit" -f $nodeIP
     Write-Host "`nTesting via NodePort ($urlNP)..."
     $responseNP = Invoke-RestMethod -Uri $urlNP `
@@ -221,11 +257,14 @@ try {
         -Body '{"message":"smoke test"}' `
         -TimeoutSec 5
     Write-Host "NodePort Response:"
-    $responseNP | ConvertTo-Json -Depth 5 | Write-Host
+    if ($responseNP) {
+        $responseNP | ConvertTo-Json -Depth 5 | Write-Host
+    } else {
+        Write-Host "No response body from NodePort"
+    }
 
     Write-Host "`nSmoke test completed successfully" -ForegroundColor Cyan
 }
 catch {
     Write-Warning ('Smoke test failed: {0}' -f $_.Exception.Message)
 }
-
