@@ -18,8 +18,7 @@ data:
               description: App-level CPU usage (from prom-client) is above threshold for more than 30 seconds on instance {{ $labels.instance }}.
 
           - alert: TooManyReplicas
-            expr: count(up{job="api-gateway"}) > 3
-            for: 30s
+            expr: count(up{job="api-gateway"}) > 2
             labels:
               severity: warning
             annotations:
