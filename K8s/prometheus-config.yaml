@@ -11,12 +11,23 @@ data:
     alerting:
       alertmanagers:
         - static_configs:
-            - targets: ['alertmanager.lra-poc.svc.cluster.local:9093']  # <- ito ang Alertmanager service name
+            - targets: ['alertmanager.lra-poc.svc.cluster.local:9093']
 
     scrape_configs:
-      - job_name: 'api-gateway'
+      - job_name: 'prometheus'
         static_configs:
-          - targets: ['api-gateway.lra-poc.svc.cluster.local:8081']
+          - targets: ['localhost:9090']
+
+      - job_name: 'api-gateway'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: api-gateway
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: 8081
 
     rule_files:
       - /etc/prometheus/rules/*.yaml

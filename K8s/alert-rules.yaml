@@ -26,7 +26,7 @@ data:
               description: "More than 3 'up' targets (active pods) of API Gateway are reporting to Prometheus."
 
           - alert: TooManyRequests
-            expr: rate(http_requests_total{status="429", pod=~"api-gateway.*"}[1m]) > 1
+            expr: rate(api_gateway_429_total[1m]) > 1
             for: 30s
             labels:
               severity: critical

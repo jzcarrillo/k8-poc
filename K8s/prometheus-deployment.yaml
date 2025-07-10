@@ -13,13 +13,13 @@ spec:
       labels:
         app: prometheus
     spec:
+      serviceAccountName: prometheus  
       containers:
         - name: prometheus
           image: prom/prometheus:v2.52.0
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--storage.tsdb.path=/prometheus/"
-            - "--rule.files=/etc/prometheus/rules/*.yaml"   # ✅ added line
           ports:
             - containerPort: 9090
           volumeMounts:

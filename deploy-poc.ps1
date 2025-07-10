@@ -123,8 +123,6 @@ foreach ($file in $configFiles) {
 
 # === Apply Prometheus Alert Rules (ConfigMaps with alert-rules.yaml inside) ===
 
-$yamlDir = "."  # or specify your folder path here
-$namespace = "lra-poc"
 
 $rulesFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*rules.yaml"
 
@@ -136,6 +134,22 @@ foreach ($file in $rulesFiles) {
         kubectl apply -f $file.FullName -n $namespace
     } else {
         Write-Warning "Skipping: Not a valid alert-rules ConfigMap → $($file.FullName)"
+    }
+}
+
+# === Apply Prometheus RBAC Definitions (ServiceAccount, Role, RoleBinding, etc.) ===
+
+# Look for filenames that are probably RBAC configs
+$rbacFiles = Get-ChildItem -Recurse -Path $yamlDir -Filter "*rbac.yaml"
+
+foreach ($file in $rbacFiles) {
+    $content = Get-Content $file.FullName -Raw
+
+    if ($content -match 'kind:\s*(ServiceAccount|Role|RoleBinding|ClusterRole|ClusterRoleBinding)') {
+        Write-Host "Applying RBAC file: $($file.FullName)"
+        kubectl apply -f $file.FullName -n $namespace
+    } else {
+        Write-Warning "⏭Skipping (no RBAC kind detected): $($file.FullName)"
     }
 }
 
@@ -300,4 +314,12 @@ try {
 }
 catch {
     Write-Warning ('Smoke test failed: {0}' -f $_.Exception.Message)
+}
+
+Write-Host "STEP 9: Scale Prometheus Deployment to 4 Replicas"
+try {
+    kubectl scale deployment prometheus -n $namespace --replicas=4
+    Write-Host "Successfully scaled Prometheus to 4 replicas" -ForegroundColor Green
+} catch {
+    Write-Warning "Failed to scale Prometheus: $($_.Exception.Message)"
 }
