@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: lra-poc
+  labels:
+    app: alertmanager
+spec:
+  selector:
+    app: alertmanager  # Ensure this matches the pod's label
+  ports:
+    - protocol: TCP
+      port: 9093
+      targetPort: 9093
+  type: ClusterIP

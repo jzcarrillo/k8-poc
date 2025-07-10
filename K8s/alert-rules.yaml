@@ -9,7 +9,7 @@ data:
       - name: k8s-alerts
         rules:
           - alert: HighCPUUsage
-            expr: rate(process_cpu_seconds_total{job="api-gateway"}[1m]) > 0.005
+            expr: rate(process_cpu_seconds_total{job="api-gateway"}[1m]) > 0.0001
             for: 30s
             labels:
               severity: warning

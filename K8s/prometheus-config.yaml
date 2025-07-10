@@ -8,6 +8,11 @@ data:
     global:
       scrape_interval: 5s
 
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager.lra-poc.svc.cluster.local:9093']  # <- ito ang Alertmanager service name
+
     scrape_configs:
       - job_name: 'api-gateway'
         static_configs:
