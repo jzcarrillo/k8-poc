@@ -323,3 +323,47 @@ try {
 } catch {
     Write-Warning "Failed to scale Prometheus: $($_.Exception.Message)"
 }
+
+Write-Host "`nSTEP 10: ALB HTTPS/HTTP Behavior Validation" -ForegroundColor Cyan
+
+# Allow untrusted/self-signed SSL certs for local testing
+if (-not ([System.Net.ServicePointManager]::CertificatePolicy -is [TrustAllCertsPolicy])) {
+    Add-Type @"
+    using System.Net;
+    using System.Security.Cryptography.X509Certificates;
+    public class TrustAllCertsPolicy : ICertificatePolicy {
+        public bool CheckValidationResult(
+            ServicePoint srvPoint, X509Certificate certificate,
+            WebRequest request, int certificateProblem) {
+            return true;
+        }
+    }
+"@
+    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+}
+
+
+# STEP 10.1: HTTPS Requests (Expect: Success)
+Write-Host "`nSending 100 HTTPS requests to https://localhost:30443"
+1..100 | ForEach-Object {
+    try {
+        Invoke-WebRequest -Uri "https://localhost:30443" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop | Out-Null
+        Write-Host "[$_] HTTPS success"
+    } catch {
+        Write-Host "[$_]  HTTPS failed - $($_.Exception.Message)"
+    }
+}
+
+# STEP 10.2: HTTP Requests (Expect: Blocked)
+Write-Host "`n Sending 100 HTTP requests to http://localhost:30080"
+1..100 | ForEach-Object {
+    try {
+        Invoke-WebRequest -Uri "http://localhost:30080" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop | Out-Null
+        Write-Host "[$_] HTTP unexpectedly succeeded"
+    } catch {
+        Write-Host "[$_] HTTP blocked as expected"
+    }
+}
+
+Write-Host “`nDeployment and Verification Complete.” -ForegroundColor Cyan
+

@@ -18,10 +18,17 @@ spec:
           image: nginx:stable
           ports:
             - containerPort: 80
+            - containerPort: 443
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d
+            - name: tls-secret
+              mountPath: /etc/nginx/tls
+              readOnly: true
       volumes:
         - name: nginx-config
           configMap:
             name: alb-nginx-config
+        - name: tls-secret
+          secret:
+            secretName: alb-nginx-tls
