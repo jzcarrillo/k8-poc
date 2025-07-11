@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alb-nginx-config
+  namespace: lra-poc
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+
+      location / {
+        proxy_pass http://frontend-service:80;
+      }
+    }
