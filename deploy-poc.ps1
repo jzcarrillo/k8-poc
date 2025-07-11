@@ -316,35 +316,36 @@ catch {
     Write-Warning ('Smoke test failed: {0}' -f $_.Exception.Message)
 }
 
-Write-Host "STEP 9: Scale Prometheus Deployment to 4 Replicas"
+Write-Host "STEP 9: Scale API Gateway Deployment to 4 Replicas"
 try {
-    kubectl scale deployment prometheus -n $namespace --replicas=4
-    Write-Host "Successfully scaled Prometheus to 4 replicas" -ForegroundColor Green
+    kubectl scale deployment api-gateway -n $namespace --replicas=4
+    Write-Host "Successfully scaled api-gateway to 4 replicas" -ForegroundColor Green
 } catch {
-    Write-Warning "Failed to scale Prometheus: $($_.Exception.Message)"
+    Write-Warning "Failed to scale api-gateway: $($_.Exception.Message)"
 }
 
 Write-Host "`nSTEP 10: ALB HTTPS/HTTP Behavior Validation" -ForegroundColor Cyan
 
-# Allow untrusted/self-signed SSL certs for local testing
-if (-not ([System.Net.ServicePointManager]::CertificatePolicy -is [TrustAllCertsPolicy])) {
-    Add-Type @"
-    using System.Net;
-    using System.Security.Cryptography.X509Certificates;
-    public class TrustAllCertsPolicy : ICertificatePolicy {
-        public bool CheckValidationResult(
-            ServicePoint srvPoint, X509Certificate certificate,
-            WebRequest request, int certificateProblem) {
-            return true;
-        }
+# Define the TrustAllCertsPolicy class to allow untrusted/self-signed SSL certs for local testing
+Add-Type @"
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
+public class TrustAllCertsPolicy : ICertificatePolicy {
+    public bool CheckValidationResult(
+        ServicePoint srvPoint, X509Certificate certificate,
+        WebRequest request, int certificateProblem) {
+        return true;
     }
-"@
-    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
 }
+"@
+
+# Set the certificate policy to TrustAllCertsPolicy
+[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+
 
 
 # STEP 10.1: HTTPS Requests (Expect: Success)
-Write-Host "`nSending 100 HTTPS requests to https://localhost:30443"
+Write-Host "`nSending 500 HTTPS requests to https://localhost:30443"
 1..100 | ForEach-Object {
     try {
         Invoke-WebRequest -Uri "https://localhost:30443" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop | Out-Null
@@ -355,7 +356,7 @@ Write-Host "`nSending 100 HTTPS requests to https://localhost:30443"
 }
 
 # STEP 10.2: HTTP Requests (Expect: Blocked)
-Write-Host "`n Sending 100 HTTP requests to http://localhost:30080"
+Write-Host "`n Sending 500 HTTP requests to http://localhost:30080"
 1..100 | ForEach-Object {
     try {
         Invoke-WebRequest -Uri "http://localhost:30080" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop | Out-Null
@@ -365,5 +366,5 @@ Write-Host "`n Sending 100 HTTP requests to http://localhost:30080"
     }
 }
 
-Write-Host “`nDeployment and Verification Complete.” -ForegroundColor Cyan
+Write-Host "`nDeployment and Verification Complete." -ForegroundColor Cyan
 
