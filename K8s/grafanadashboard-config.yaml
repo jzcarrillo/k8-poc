@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-dashboard
+  namespace: lra-poc
+data:
+  api-gateway-dashboard.json: |
+    {
+      "id": null,
+      "title": "API Gateway Health Dashboard",
+      "tags": ["auto", "api-gateway"],
+      "timezone": "browser",
+      "schemaVersion": 36,
+      "version": 1,
+      "refresh": "10s",
+      "panels": [
+        {
+          "title": "High CPU Usage",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "rate(process_cpu_seconds_total{job=\"api-gateway\"}[1m]) > 0.0001",
+              "legendFormat": "CPU Rate",
+              "interval": ""
+            }
+          ]
+        },
+        {
+          "title": "Replica Count",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 8, "w": 6, "h": 5 },
+          "targets": [
+            {
+              "expr": "count(up{job=\"api-gateway\"}) > 2",
+              "legendFormat": "Pod Count"
+            }
+          ]
+        },
+        {
+          "title": "Too Many Requests (429)",
+          "type": "timeseries",
+          "gridPos": { "x": 6, "y": 8, "w": 6, "h": 5 },
+          "targets": [
+            {
+              "expr": "rate(api_gateway_429_total[1m]) > 1",
+              "legendFormat": "429 Rate"
+            }
+          ]
+        }
+      ]
+    }
